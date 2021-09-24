@@ -1,13 +1,47 @@
-name: 'Wait'
-description: 'Wait a designated number of milliseconds'
+name: Comment Floodgate
+description: Automatically lock issues if they get flooded with comments.
+
 inputs:
-  milliseconds:  # id of input
-    description: 'number of milliseconds to wait'
-    required: true
-    default: '1000'
-outputs:
-  time: # output will be available to future steps
-    description: 'The message to output'
+  repo-token:
+    description: >-
+      The automatic GITHUB_TOKEN secret.
+    required: false
+    default: ${{ github.token }}
+
+  minutes-in-period:
+    description: >-
+      The number of minutes in the time period.
+      Must be an integer greater than 0.
+    required: false
+    default: 60
+
+  max-comments-per-period:
+    description: >-
+      How many comment reactions per time period are allowed before this action
+      locks an issue (use 0 to disable).
+    required: false
+    default: 12
+
+  lock-message:
+    description: >-
+      The comment that this action posts when it locks an issue.
+    required: false
+    default: >-
+      This issue is seeing a lot of traffic,
+      so we’re going to lock it to just collaborators for now.
+
+  lock-reason:
+    description: >-
+      The reason for locking the issue or pull request conversation.
+      Lock will fail if you don't use one of these reasons:
+      `off-topic`, `too heated`, `resolved`, or `spam`.
+    required: false
+    default: too heated
+
 runs:
-  using: 'node12'
-  main: 'dist/index.js'
+  using: node12
+  main: dist/index.js
+
+branding:
+  icon: cloud-rain
+  color: blue

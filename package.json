@@ -1,7 +1,7 @@
 {
-  "name": "javascript-action",
+  "name": "github-comment-floodgate",
   "version": "1.0.0",
-  "description": "JavaScript Action Template",
+  "description": "A GitHub Action that automatically locks issues if they get flooded with comments.",
   "main": "index.js",
   "scripts": {
     "lint": "eslint .",
@@ -18,14 +18,15 @@
     "Actions",
     "JavaScript"
   ],
-  "author": "",
+  "author": "J. S. Choi <jschoi@jschoi.org>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/actions/javascript-action/issues"
   },
   "homepage": "https://github.com/actions/javascript-action#readme",
   "dependencies": {
-    "@actions/core": "^1.2.5"
+    "@actions/core": "^1.2.5",
+    "@actions/github": "^5.0.0"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.31.1",
