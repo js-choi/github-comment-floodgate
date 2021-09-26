@@ -1,5 +1,7 @@
 # GitHub Comment Floodgate
-This is an unofficial GitHub Action that automatically locks issues
+For maintainers of open-source projects that get high amounts of comment traffic.
+
+This is a GitHub Action that automatically locks issues
 if they get flooded with comments beyond a certain threshold rate.
 It was inspired by [keithamus/probot-flood](https://github.com/keithamus/probot-flood).
 
@@ -13,7 +15,7 @@ jobs:
   floodgate:
     runs-on: ubuntu-latest
     steps:
-    - uses: js-choi/github-floodgate@v1
+    - uses: js-choi/github-floodgate@v2
       with:
         # Sixty minutes is the default period.
         minutes-in-period: 60

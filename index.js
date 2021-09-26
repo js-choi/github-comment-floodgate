@@ -1,4 +1,4 @@
-const { checkForFlood, lockFloodedIssue } = require('./api');
+const { measureCommentTraffic, lockFloodedIssue } = require('./api');
 
 const core = require('@actions/core');
 const github = require('@actions/github');
@@ -51,24 +51,27 @@ async function run () {
 
     core.info(`Responding to comment ${comment_id} in ${owner}/${repo}#${issue_number}.`);
 
-    const issueIsFlooding = await checkForFlood({
-      minutesInPeriod, maxCommentsPerPeriod,
+    // Note: If the server returns a 404 error (e.g., the active comment no longer exists)
+    // then this is set to `undefined`.
+    const floodLevel = await measureCommentTraffic({
+      minutesInPeriod,
       octokit,
       owner, repo, issue_number, comment_id,
     });
 
-    if (issueIsFlooding) {
+    // Note: If `floodLevel` is `undefined`, then this condition is false.
+    if (floodLevel >= maxCommentsPerPeriod) {
       core.notice(
-        `⚠️️🌊️ ${owner}/${repo}#${issue_number} is FLOODING as of comment ${comment_id}.`,
+        `⚠️️🌊️ ${owner}/${repo}#${issue_number} is FLOODING as of comment ${comment_id}. Current flood level is ${floodLevel}.`,
       );
       await lockFloodedIssue({
-        lock_message, lock_reason,
+        minutesInPeriod, maxCommentsPerPeriod, lock_message, lock_reason,
         octokit,
         owner, repo, issue_number,
       });
     } else {
       core.info(
-        `${owner}/${repo}#${issue_number} is not flooding as of comment ${comment_id}.`,
+        `${owner}/${repo}#${issue_number} is not flooding as of comment ${comment_id}. Current flood level is ${floodLevel}.`,
       );
     }
   } catch (err) {

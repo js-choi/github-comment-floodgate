@@ -1,6 +1,6 @@
 const API = require('./api');
 
-describe('checkForFlood', () => {
+describe('measureCommentTraffic', () => {
   test('throws with invalid dates', async () => {
     const invalidDate = null;
 
@@ -10,7 +10,6 @@ describe('checkForFlood', () => {
 
     const options = {
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate () {
           return [ activeComment ];
@@ -26,14 +25,13 @@ describe('checkForFlood', () => {
       },
     };
 
-    await expect(API.checkForFlood(options))
+    await expect(API.measureCommentTraffic(options))
       .rejects.toThrow(API.createInvalidDateFormatMessage(null));
   });
 
   test('throws if unhandled error occurs in getComment', async () => {
     const options = {
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate () {
           return [];
@@ -49,14 +47,13 @@ describe('checkForFlood', () => {
       },
     };
 
-    await expect(API.checkForFlood(options))
+    await expect(API.measureCommentTraffic(options))
       .rejects.toThrow();
   });
 
   test('returns false if comment no longer exists', async () => {
     const options = {
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate () {
           return [];
@@ -72,8 +69,8 @@ describe('checkForFlood', () => {
       },
     };
 
-    await expect(API.checkForFlood(options))
-      .resolves.toBe(false);
+    await expect(API.measureCommentTraffic(options))
+      .resolves.toBeUndefined();
   });
 
   test('returns false if no other comments in issue', async () => {
@@ -81,7 +78,6 @@ describe('checkForFlood', () => {
 
     const options = {
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate () {
           return [ activeComment ];
@@ -97,18 +93,16 @@ describe('checkForFlood', () => {
       },
     };
 
-    await expect(API.checkForFlood(options))
-      .resolves.toBe(false);
+    await expect(API.measureCommentTraffic(options))
+      .resolves.toBe(1);
   });
 
-  test('returns false if not enough comments within period of comment', async () => {
+  test('returns number of comments (1) within period of comment', async () => {
     // This comment does *not* two other comments within the same ten minutes.
     const activeComment = { created_at: '2020-01-01T10:00' };
 
     const options = {
-      // Maximum of three comments in ten minutes.
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate () {
           return [
@@ -128,18 +122,16 @@ describe('checkForFlood', () => {
       },
     };
 
-    await expect(API.checkForFlood(options))
-      .resolves.toBe(false);
+    await expect(API.measureCommentTraffic(options))
+      .resolves.toBe(1);
   });
 
-  test('returns true if enough comments within period of comment', async () => {
+  test('returns number of comments (3) within period of comment', async () => {
     // This comment has two other comments within the same ten minutes.
     const activeComment = { created_at: '2020-01-01T00:02' };
 
     const options = {
-      // Maximum of three comments in ten minutes.
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate () {
           return [
@@ -159,8 +151,8 @@ describe('checkForFlood', () => {
       },
     };
 
-    await expect(API.checkForFlood(options))
-      .resolves.toBe(true);
+    await expect(API.measureCommentTraffic(options))
+      .resolves.toBe(3);
   });
 
   test('calls octokit.rest.issues.getComment with appropriate options', async () => {
@@ -169,13 +161,11 @@ describe('checkForFlood', () => {
     const owner_symbol = Symbol();
     const repo_symbol = Symbol();
     const comment_id_symbol = Symbol();
-  
+
     let getcreateCommentWasCalled = false;
 
     const options = {
-      // Maximum of three comments in ten minutes.
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate (method) {
           return [ activeComment ];
@@ -203,7 +193,7 @@ describe('checkForFlood', () => {
       comment_id: comment_id_symbol,
     };
 
-    await API.checkForFlood(options);
+    await API.measureCommentTraffic(options);
     await expect(getcreateCommentWasCalled)
       .toBe(true);
   });
@@ -215,13 +205,11 @@ describe('checkForFlood', () => {
     const owner_symbol = Symbol();
     const repo_symbol = Symbol();
     const issue_number_symbol = Symbol();
-  
+
     let paginateWasCalled = false;
 
     const options = {
-      // Maximum of three comments in ten minutes.
       minutesInPeriod: 10,
-      maxCommentsPerPeriod: 3,
       octokit: {
         async paginate (method, { owner, repo, issue_number }) {
           if (method !== listComments_symbol)
@@ -253,7 +241,7 @@ describe('checkForFlood', () => {
       issue_number: issue_number_symbol,
     };
 
-    await API.checkForFlood(options);
+    await API.measureCommentTraffic(options);
     await expect(paginateWasCalled)
       .toBe(true);
   });
@@ -264,12 +252,17 @@ describe('lockFloodedIssue', () => {
     const owner_symbol = Symbol();
     const repo_symbol = Symbol();
     const issue_number_symbol = Symbol();
-    const lock_message_symbol = Symbol();
-  
+    const lock_message =
+      'Flood! {{maxCommentsPerPeriod}} in the past {{minutesInPeriod}}.';
+    const maxCommentsPerPeriod = 3;
+    const minutesInPeriod = 10;
+    const expected_lock_message =
+      `Flood! ${maxCommentsPerPeriod} in the past ${minutesInPeriod}.`;
+
     let createCommentWasCalled = false;
-  
+
     const options = {
-      lock_message: lock_message_symbol,
+      maxCommentsPerPeriod, minutesInPeriod, lock_message,
 
       octokit: {
         rest: {
@@ -283,12 +276,12 @@ describe('lockFloodedIssue', () => {
                 throw new Error;
               else if (issue_number !== issue_number_symbol)
                 throw new Error;
-              else if (body !== lock_message_symbol)
+              else if (body !== expected_lock_message)
                 throw new Error;
               else
                 createCommentWasCalled = true;
             },
-          
+
             async lock () {},
           },
         },
@@ -298,7 +291,7 @@ describe('lockFloodedIssue', () => {
       repo: repo_symbol,
       issue_number: issue_number_symbol,
     };
-  
+
     await API.lockFloodedIssue(options);
     await expect(createCommentWasCalled)
       .toBe(true);
@@ -309,17 +302,19 @@ describe('lockFloodedIssue', () => {
     const repo_symbol = Symbol();
     const issue_number_symbol = Symbol();
     const lock_reason_symbol = Symbol();
-  
+    const lock_message = '';
+
     let lockWasCalled = false;
-  
+
     const options = {
       lock_reason: lock_reason_symbol,
+      lock_message,
 
       octokit: {
         rest: {
           issues: {
             async createComment () {},
-            
+
             async lock ({ owner, repo, issue_number, lock_reason }) {
               if (owner !== owner_symbol)
                 throw new Error;
@@ -342,7 +337,7 @@ describe('lockFloodedIssue', () => {
       repo: repo_symbol,
       issue_number: issue_number_symbol,
     };
-  
+
     await API.lockFloodedIssue(options);
     await expect(lockWasCalled)
       .toBe(true);
@@ -352,12 +347,12 @@ describe('lockFloodedIssue', () => {
     const owner_symbol = Symbol();
     const repo_symbol = Symbol();
     const issue_number_symbol = Symbol();
-    const lock_message_symbol = Symbol();
-  
+    const lock_message = '';
+
     let createCommentWasCalled = false;
-  
+
     const options = {
-      lock_message: lock_message_symbol,
+      lock_message,
 
       octokit: {
         rest: {
@@ -367,7 +362,7 @@ describe('lockFloodedIssue', () => {
 
               throw { name: 'HttpError', status: 403 };
             },
-          
+
             async lock () {},
           },
         },
@@ -377,7 +372,7 @@ describe('lockFloodedIssue', () => {
       repo: repo_symbol,
       issue_number: issue_number_symbol,
     };
-  
+
     await API.lockFloodedIssue(options);
     await expect(createCommentWasCalled)
       .toBe(true);
@@ -387,10 +382,10 @@ describe('lockFloodedIssue', () => {
     const owner_symbol = Symbol();
     const repo_symbol = Symbol();
     const issue_number_symbol = Symbol();
-    const lock_message_symbol = Symbol();
-  
+    const lock_message = '';
+
     const options = {
-      lock_message: lock_message_symbol,
+      lock_message,
 
       octokit: {
         rest: {
@@ -398,7 +393,7 @@ describe('lockFloodedIssue', () => {
             async createComment () {
               throw new Error;
             },
-          
+
             async lock () {},
           },
         },
@@ -408,7 +403,7 @@ describe('lockFloodedIssue', () => {
       repo: repo_symbol,
       issue_number: issue_number_symbol,
     };
-  
+
     await expect(API.lockFloodedIssue(options))
       .rejects.toThrow();
   });

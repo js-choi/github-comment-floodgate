@@ -19,21 +19,21 @@ function getMinuteCreatedAt (commentData) {
   return createdAtMinute;
 }
 
-function assessFloodStatus (options) {
+function measureCommentData (options) {
   const {
     commentDataArray, activeCreatedAtDate,
-    minutesInPeriod, maxCommentsPerPeriod,
+    minutesInPeriod,
   } = options;
-  
+
   return commentDataArray
     .filter(commentData =>
       activeCreatedAtDate - getMinuteCreatedAt(commentData) < minutesInPeriod)
-    .length >= maxCommentsPerPeriod;
+    .length;
 }
 
-async function checkForFlood (options) {
+async function measureCommentTraffic (options) {
   const {
-    minutesInPeriod, maxCommentsPerPeriod,
+    minutesInPeriod,
     octokit,
     owner, repo, issue_number, comment_id,
   } = options;
@@ -46,30 +46,35 @@ async function checkForFlood (options) {
       await octokit.paginate(octokit.rest.issues.listComments, {
         owner, repo, issue_number,
       });
-    return assessFloodStatus({
+    return measureCommentData({
       commentDataArray, activeCreatedAtDate,
-      minutesInPeriod, maxCommentsPerPeriod,
+      minutesInPeriod,
     });
   } catch (err) {
     if (err.name === 'HttpError' && err.status === 404)
-      return false;
+      return undefined;
     else
       throw err;
   }
 }
 
-module.exports.checkForFlood = checkForFlood;
+module.exports.measureCommentTraffic = measureCommentTraffic;
+
+const maxCommentsPerPeriodSubstitutionToken = '{{maxCommentsPerPeriod}}';
+const minutesInPeriodSubstitutionToken = '{{minutesInPeriod}}';
 
 async function lockFloodedIssue (options) {
   const {
     octokit,
     owner, repo, issue_number,
-    lock_message, lock_reason,
+    maxCommentsPerPeriod, minutesInPeriod, lock_message, lock_reason,
   } = options;
   try {
+    const body = lock_message
+      .replace(maxCommentsPerPeriodSubstitutionToken, maxCommentsPerPeriod)
+      .replace(minutesInPeriodSubstitutionToken, minutesInPeriod);
     await octokit.rest.issues.createComment({
-      owner, repo, issue_number,
-      body: lock_message,
+      owner, repo, issue_number, body,
     });
     await octokit.rest.issues.lock({
       owner, repo, issue_number,

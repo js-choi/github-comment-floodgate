@@ -25,10 +25,17 @@ inputs:
   lock-message:
     description: >-
       The comment that this action posts when it locks an issue.
+      The first `{{maxCommentsPerPeriod}}` string (no spaces) is replaced by the
+      `max-comments-per-period` input.
+      The first `{{minutesInPeriod}}` string (no spaces) is replaced by the
+      `minutes-in-period` input.
     required: false
     default: >-
-      This issue is seeing a lot of traffic,
-      so we’re going to lock it to just collaborators for now.
+      This issue is seeing a lot of traffic
+      ({{maxCommentsPerPeriod}} comments
+      in only {{minutesInPeriod}} minutes!),
+      so we’re going to lock it to just collaborators for now,
+      in a cooldown period.
 
   lock-reason:
     description: >-

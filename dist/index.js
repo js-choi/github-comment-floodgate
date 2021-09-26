@@ -25,21 +25,21 @@ function getMinuteCreatedAt (commentData) {
   return createdAtMinute;
 }
 
-function assessFloodStatus (options) {
+function measureCommentData (options) {
   const {
     commentDataArray, activeCreatedAtDate,
-    minutesInPeriod, maxCommentsPerPeriod,
+    minutesInPeriod,
   } = options;
-  
+
   return commentDataArray
     .filter(commentData =>
       activeCreatedAtDate - getMinuteCreatedAt(commentData) < minutesInPeriod)
-    .length >= maxCommentsPerPeriod;
+    .length;
 }
 
-async function checkForFlood (options) {
+async function measureCommentTraffic (options) {
   const {
-    minutesInPeriod, maxCommentsPerPeriod,
+    minutesInPeriod,
     octokit,
     owner, repo, issue_number, comment_id,
   } = options;
@@ -52,30 +52,35 @@ async function checkForFlood (options) {
       await octokit.paginate(octokit.rest.issues.listComments, {
         owner, repo, issue_number,
       });
-    return assessFloodStatus({
+    return measureCommentData({
       commentDataArray, activeCreatedAtDate,
-      minutesInPeriod, maxCommentsPerPeriod,
+      minutesInPeriod,
     });
   } catch (err) {
     if (err.name === 'HttpError' && err.status === 404)
-      return false;
+      return undefined;
     else
       throw err;
   }
 }
 
-module.exports.checkForFlood = checkForFlood;
+module.exports.measureCommentTraffic = measureCommentTraffic;
+
+const maxCommentsPerPeriodSubstitutionToken = '{{maxCommentsPerPeriod}}';
+const minutesInPeriodSubstitutionToken = '{{minutesInPeriod}}';
 
 async function lockFloodedIssue (options) {
   const {
     octokit,
     owner, repo, issue_number,
-    lock_message, lock_reason,
+    maxCommentsPerPeriod, minutesInPeriod, lock_message, lock_reason,
   } = options;
   try {
+    const body = lock_message
+      .replace(maxCommentsPerPeriodSubstitutionToken, maxCommentsPerPeriod)
+      .replace(minutesInPeriodSubstitutionToken, minutesInPeriod);
     await octokit.rest.issues.createComment({
-      owner, repo, issue_number,
-      body: lock_message,
+      owner, repo, issue_number, body,
     });
     await octokit.rest.issues.lock({
       owner, repo, issue_number,
@@ -8429,7 +8434,7 @@ module.exports = require("zlib");
 var __webpack_exports__ = {};
 // This entry need to be wrapped in an IIFE because it need to be isolated against other modules in the chunk.
 (() => {
-const { checkForFlood, lockFloodedIssue } = __nccwpck_require__(3898);
+const { measureCommentTraffic, lockFloodedIssue } = __nccwpck_require__(3898);
 
 const core = __nccwpck_require__(2186);
 const github = __nccwpck_require__(5438);
@@ -8482,24 +8487,27 @@ async function run () {
 
     core.info(`Responding to comment ${comment_id} in ${owner}/${repo}#${issue_number}.`);
 
-    const issueIsFlooding = await checkForFlood({
-      minutesInPeriod, maxCommentsPerPeriod,
+    // Note: If the server returns a 404 error (e.g., the active comment no longer exists)
+    // then this is set to `undefined`.
+    const floodLevel = await measureCommentTraffic({
+      minutesInPeriod,
       octokit,
       owner, repo, issue_number, comment_id,
     });
 
-    if (issueIsFlooding) {
+    // Note: If `floodLevel` is `undefined`, then this condition is false.
+    if (floodLevel >= maxCommentsPerPeriod) {
       core.notice(
-        `⚠️️🌊️ ${owner}/${repo}#${issue_number} is FLOODING as of comment ${comment_id}.`,
+        `⚠️️🌊️ ${owner}/${repo}#${issue_number} is FLOODING as of comment ${comment_id}. Current flood level is ${floodLevel}.`,
       );
       await lockFloodedIssue({
-        lock_message, lock_reason,
+        minutesInPeriod, maxCommentsPerPeriod, lock_message, lock_reason,
         octokit,
         owner, repo, issue_number,
       });
     } else {
       core.info(
-        `${owner}/${repo}#${issue_number} is not flooding as of comment ${comment_id}.`,
+        `${owner}/${repo}#${issue_number} is not flooding as of comment ${comment_id}. Current flood level is ${floodLevel}.`,
       );
     }
   } catch (err) {
