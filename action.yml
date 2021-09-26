@@ -32,7 +32,7 @@ inputs:
     required: false
     default: >-
       This issue is seeing a lot of traffic
-      ({{maxCommentsPerPeriod}} comments
+      ({{maxCommentsPerPeriod}} new comments
       in only {{minutesInPeriod}} minutes!),
       so we’re going to lock it to just collaborators for now,
       in a cooldown period.
