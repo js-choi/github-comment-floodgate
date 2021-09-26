@@ -15,7 +15,7 @@ jobs:
   floodgate:
     runs-on: ubuntu-latest
     steps:
-    - uses: js-choi/github-floodgate@v2
+    - uses: js-choi/github-comment-floodgate@v2
       with:
         # Sixty minutes is the default period.
         minutes-in-period: 60
